@@ -8,6 +8,8 @@
  #include <stdlib.h>
  #include <string.h>
  #include <pthread.h>
+ #include <limits.h>
+ #include "mt19937ar.h"
 
 //check to see if the buffer is empty or not. buffer can only hold 32 items
 
@@ -32,39 +34,15 @@ void consumer(){
 }
 unsigned int randomminmax(unsigned int min, unsigned int max){
 	unsigned int value;
-	unsigned int eax;
-	unsigned int ebx;
-	unsigned int ecx;
-	unsigned int edx;
-	
 	if(min > max){
 		printf("IMPROPER RAND ARGS");
 		value = 0;
 		return value;
 	}
 	unsigned int range = (max - min)+1;
-	char vendor[13];
-	
-	eax = 0x01;
-
-	__asm__ __volatile__(
-	                     "cpuid;"
-	                     : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx)
-	                     : "a"(eax)
-	                     );
-	
-	if(ecx & 0x40000000){
-		__asm__("rdrand  %[value]"
-			   : [value] "=r" (value)
-			   :
-			   : "cc"  
-			   );
-		value = (value%range)+min;
-		return value;	
-	}
-	else{
-		//use mt19937
-	}
+	value = randomval();
+	value = (value%range)+min;
+	return value;	
 }
 unsigned int randomval(){
 	unsigned int value;
@@ -89,12 +67,14 @@ unsigned int randomval(){
 			   :
 			   : "cc"  
 			   );
-		return value;	
 	}
 	else{
 		//use mt19937
+		init_genrand(seed);
+		unsigned long rand = genrand_int32();
+		value = rand & UINT_MAX;
 	}
-
+	return value;	
 }
 
 int main(){
