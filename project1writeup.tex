@@ -59,7 +59,7 @@
 
         CS 444\\
         Spring 2017\\
-        20 April 2017\\
+        21 April 2017\\
 
         \vspace{1cm}
 
@@ -67,9 +67,7 @@
 
         \vspace{0.5cm}
 
-
-        \vfill
-
+        In low level systems it is crucial to have an understanding of linux processes and threads. The concurrency problem was a great example where safety precautions needed to be taken in order to avoid any issues. The use of pthreads and mutex locks was the way to ensure that valid access was occurring. The final result was a continuously running buffer with both the producer and consumer (void)functions adding and taking from a shared buffer.\vfill
 
 
     \end{center}
@@ -77,56 +75,168 @@
 
 \newpage
 
-\section{Log of Commands}
+\section{VM Log of Commands}
+The first steps in getting started we first had to clone the linux project into our directory 11-11:
+\begin{lstlisting}
+$ git clone git://git.yoctoproject.org/linux-yocto-3.14
+\end{lstlisting}
 
+Also checked out the correct branch with:
 
 \begin{lstlisting}
+$ git checkout v3.14.26
 \end{lstlisting}
+Next we sourced the environment configuration script with the command:
+\begin{lstlisting}
+$ source /scratch/opt/environment-setup-i586-poky-linux
+\end{lstlisting}
+
+after that we ran qemu in debug mode, and ran the long command:
+
+\begin{lstlisting}
+$ qemu-system-i386 -gdb tcp::6611 -S -nographic -kernel
+bzImage-qemux86.bin -drive file=core-image-lsb-sdk-qemux86.ext3,
+if=virtio -enable-kvm -net none -usb -localtime --no-reboot --append
+"root=/dev/vda rw console=ttyS0 debug"
+\end{lstlisting}
+In order to start up the VM, first we had to run qemu in debug mode, then we opened a new terminal tab and ran the commands to source and target the VM:
+
+\begin{lstlisting}
+$ source /scratch/opt/environment-setup-i586-poky-linux
+$ $GDB
+$ target remote :6611
+$ continue
+\end{lstlisting}
+
+When we were configuring, the terminal prompted us for a kernal config setting CONFIG\_SH\_ETH and we responded with m for missing. Going back into the first terminal window, we saw QEMU building and running. However, in order to run YOCTO, there were a few extra steps that had to be done in order for it to run correctly. Here are the following commands:
+
+\begin{lstlisting}
+$ cp /scratch/spring2015/files/config-3.14.26-yocto-qemu
+/scratch/spring2016/cs444-074/linux-yocto-3.14
+$ make -j4 all
+\end{lstlisting}
+
 
 \section{Concurrency Solution Writeup}
 
+\textit{\large{MAIN function}}
+\begin{itemize}
+	\item check number of arguments
+    \item initialize time, integers, buffer, mutex and pthread conditionals
+    \item create an array of threads of input size
+    \item set first thread as a producer and each thread after that will alternate between a consumer and producer.
+    \item while loop until user control c's
+
+\end{itemize}
+\textit{\large{PRODUCER function}}
+\begin{itemize}
+	\item wait if buffer is full
+    \item call radnomminmax for wait time and then wait
+    \item check if buffer is empty at index idx and assign random values
+
+\end{itemize}
+
+\textit{\large{CONSUMER Function}}
+\begin{itemize}
+	\item if buffer is empty wait until producer has added something
+    \item check if top of queue if full grab wait time
+    \item wait for time given time
+    \item empty top of queue and move index back
+
+\end{itemize}
+
+\textit{\large{RANDOMVAL}}
+\begin{itemize}
+	\item call assembly code to check CPU ID
+    \item see if intel processor flag is true
+    \item if it is, call rdand and assign random value to output
+    \item if not, produce seed for Mersenne Twister initialization then produce random output
+
+\end{itemize}
+
+\textit{\large{RANDOMMINMAX}}
+\begin{itemize}
+	\item check if min is less then max throw error if not
+    \item find range of values (max - min + 1)
+    \item call randomval
+    \item modularly divide random value by range
+    \item add min to value
+
+\end{itemize}
 
 \section{QEMU Command-Line Flags}
 
 \begin{itemize}
   \item -gdb: Wait for gdb connection on device tcp::6611.
-
+  \item -S: In order to use gdb, -s flag will wait for a GDB connection.
+  \item -nographic: Disable graphical output.
+  \item -kernel: Provide Linux kernel image without having to make a full bootable image.
+  \item -drive: Define a new drive file, the “file=” option defines which disk image to use with the drive.
+  \item -enable-kvm: Enable full KVM virtualization support.
+  \item -net: Set any necessary network options.
+  \item -usb: Enable the USB driver.
+  \item -localtime: Enable system to be set at local time.
+  \item -no-reboot: Exit instead of rebooting.
+  \item -append: Give kernel command line arguments/ Use appended command line as kernel command line.
 
 \end{itemize}
-
-\newpage
 
 \section{Concurrency Questions}
 
 \textit{What do you think the main point of this assignment is?}\\
 
-write text\\
+After completing assignment 1 we thought the main purpose of the first concurrency assignment was to get a better understanding of muti-process operations. Also, to get familiarized with pthreads.\\
 
 \textit{How did you personally approach the problem? Design decisions, algorithm, etc.}\\
 
-text\\
+We were quite stumped at first. It was a little overwhelming trying to figure out what the assignment was asking. The first couple of times reading through the assignment it was a little confusing however, after slowing down and thoroughly reading through the instructions we had a better understanding of how to implement this assignment. We first started off on writing down possible functions that had to be incorporated into our code. After we had a better understand of what had to be done in our code we started off with the randomization followed by creating the producer and consumer functions and lastly implementing the pthreads.\\
 
-text\\
+Our program is designed to take the number of threads as an argument, and the first thread that is created is a producer. After that each thread alternates between being a consumer or producer.  \\
 
 \textit{How did you ensure your solution was correct? Testing details, for instance.}\\
 
-text\\
+A big part of our testing was throwing in printing statements and values throughout the program in order to see what was going on. This was very useful in figure out how threads worked. We had a difficult time figuring out what was going on with that part of the assignment. However, by including these print statements and some research we were able to insure that our program was working correctly. Also we tested we tested the program on the OS server as well as cygwin on a laptop with an Intel processor.\\
 
 \textit{What did you learn?}\\
 
-text\\
+From assignment 1/project 1 we learned a lot about pthreads and the various methods of synchronization. We learned the ways of implementing assembly language into C code. We ran into some trouble on the pthreads section of this assignment which slowed things down but like we stated above, it was a good learning process. Using the mutex to lock and unlock the threads in order to ensure one thread was active at a time was the most valuable lesson from this assignment. We learned much about the Kernel and how it functions. Over all it was  an experience for us learning about linux processes and pthreads.\\
 
-\section{Version Control Log}
-
+\section{Version Control Log Github}
 \begin{tabular}{lll} \textbf{Author}
      & \textbf{Date}
      & \textbf{Message}
-
 \\ \hline
+RossDan96 & 2017-04-20 & Initial commit \\ \hline
+Bradimai & 2014-04-20 & start of Currency1 \\ \hline
+RossDan96 & 2017-04-20 & Version with Radon done \\ \hline
+RossDan96 & 2017-04-20 & Makefile and Mersenne Twister added \\ \hline
+RossDan96 & 2017-04-20 & testing the rand functions \\ \hline
+Bradimai & 2017-04-20 & write up summary \\ \hline
+Bradimai & 2017-04-20 & made changes to testrand.c file \\ \hline
+RossDan96 & 2017-04-20 & created a testing file \\ \hline
+Bradimai & 2017-04-20 & created a test make file \\ \hline
+Bradimai & 2017-04-20 & updated the mt files \\ \hline
+RossDan96 & 2017-04-20 & added testrand.o added \\ \hline
+RossDan96 & 2017-04-20 & Threading added \\ \hline
+Bradimai & 2017-04-20 & updated concurrency1.c file part of tex \\ \hline
+RossDan96 & 2017-04-20 & Make file with TEX \\ \hline
+Bradimai & 2017-04-20 & final push for project 1 with everything updated\\ \hline
 \end{tabular}
 
 \section{Work Log}
 
-text
+\begin{tabular}{lll} \textbf{where}
+     & \textbf{Date}
+     & \textbf{what we did}
+
+\\ \hline
+Library & 2017-04-11 & Finished up the VM portion of the assignment \\ \hline
+Library & 2014-04-18 & start of Currency1. was able to figure out the randomization \\ \hline
+Linc & 2017-04-20 &  worked on producer, consumer and threads\\ \hline
+Library & 2017-04-21 & wrote the written portion of the document and made a few changes\\&& to our code \\ \hline
+
+\end{tabular}
+
+My group member and I started our assignment about a week ago or so. During our recitation we were able to get part of the VM portion of the assignment to work. However, later that day we met up at the library to finish the first part of the assignment. It took use a few hours to figure out how to set up everything and run it correctly. Our next meet up day was on Tuesday were we began to start the concurrency part of the assignment. This portion of the assignment was a lot more challenging then what we had thought. We got a good start on it and was able to figure out the randomization parts of the assignment. We met the following day to start on the producer, consumer and threads portion of the assignment. Finally we met up on Friday to finish up the written part of the assignment and a couple small changes to our code.
 
 \end{document}
