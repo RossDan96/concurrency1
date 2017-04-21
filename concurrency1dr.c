@@ -19,7 +19,7 @@
 * at the same time. One will have to lcoked and the other is unlocked
 */
 
-pthread_mutex_t lock;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t stopproducer,stopconsumer;
 int idx = 0;
 
@@ -115,9 +115,11 @@ void *consumer(){
 	while(1){
     int grabbed = idx;
 		consumer_wait = 0;
-    if(idx < 1){
+		pthread_mutex_lock(&lock);
+		if(idx < 1){
 			pthread_cond_wait(&stopconsumer,&lock);
-		}else{
+		}
+		pthread_mutex_unlock(&lock);
       pthread_mutex_lock(&lock);
         if(!(buffer_empty(grabbed))){
           printf("Consumes value %u at index %d \n Consumer waits for %u at index %d \n",buffer[grabbed].number, grabbed, buffer[grabbed].wait_time, grabbed);
@@ -130,7 +132,6 @@ void *consumer(){
         }
         pthread_mutex_unlock(&lock);
         sleep(consumer_wait);
-    }
 
     }
 }
