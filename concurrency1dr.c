@@ -20,77 +20,16 @@
 */
 
 pthread_mutex_t lock;
+pthread_cond_t stopproducer,stopconsumer;
+int idx = 0;
 
 struct Data{
    int number;
    int wait_time;
  };
- 
+
 struct Data buffer[32];
 
-int buffer_empty(int idx){
-	int out = 0;
-	if (buffer[i].number == -1 || buffer[i].number == -1){
-		out = 1;
-	}
-	return out;
-}
- 
-void *producer(int* idx){
-	unsigned int producer_wait = 0;
-	while(1){
-		if(idx >= 32){
-			idx = 0;
-		}
-		producer_wait = 0;
-		if(!(pthread_mutex_trylock(&lock))){
-			if(buffer_empty(*idx)){
-				buffer[*idx].number = randomval();
-				buffer[*idx].wait_time = randomminmax(2,9);
-				printf("Buffer Index: %u \n Value: %u \n Wait Time: %u \n", *idx, buffer[*idx].number, buffer[*idx].wait_time);
-				producer_wait = randomminmax(3,7);
-				printf("Producer waits for: %u \n", producer_wait);
-			}
-			pthread_mutex_unlock(&lock);
-			sleep(producer_wait);
-		}
-		*idx = *idx + 1;	
-	}
-}
-
-void *consumer(int* idx){
-	unsigned int consumer_wait;
-	while(1){
-		if(*idx >= 32){
-			*idx = 0;
-		}
-		consumer_wait = 0;
-		if(!(pthread_mutex_trylock(&lock))){
-			if(!(buffer_empty(*idx))){
-				printf("Consumes value %u at index %d \n", buffer[*idx].number, *idx);
-				printf("Consumer waits for %u at index %d \n", buffer[*idx].wait_time, *idx);
-				consumer_wait = buffer[*idx].wait_time;
-				buffer[*idx].number = -1;
-				buffer[*idx].wait_time = -1;
-			}
-			pthread_mutex_unlock(&lock);
-			sleep(consumer_wait);
-		}
-		*idx = *idx + 1;
-	}
-}
-unsigned int randomminmax(unsigned int min, unsigned int max){
-	unsigned int value;
-	if(min > max){
-		printf("IMPROPER RAND ARGS");
-		value = 0;
-		return value;
-	}
-	unsigned int range = (max - min)+1;
-	value = randomval();
-	value = (value%range)+min;
-	return value;	
-}
 unsigned int randomval(){
 	unsigned int value;
 	unsigned int eax;
@@ -99,7 +38,7 @@ unsigned int randomval(){
 	unsigned int edx;
 
 	char vendor[13];
-	
+
 	eax = 0x01;
 
 	__asm__ __volatile__(
@@ -107,12 +46,12 @@ unsigned int randomval(){
 	                     : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx)
 	                     : "a"(eax)
 	                     );
-	
+
 	if(ecx & 0x40000000){
 		__asm__("rdrand  %[value]"
 			   : [value] "=r" (value)
 			   :
-			   : "cc"  
+			   : "cc"
 			   );
 	}
 	else{
@@ -122,7 +61,78 @@ unsigned int randomval(){
 		unsigned long rand = genrand_int32();
 		value = rand & UINT_MAX;
 	}
-	return value;	
+	return value;
+}
+
+unsigned int randomminmax(unsigned int min, unsigned int max){
+	unsigned int value;
+	if(min > max){
+		printf("IMPROPER RAND ARGS");
+		value = 0;
+		return value;
+	}
+	unsigned int range = (max - min)+1;
+	value = randomval();
+	value = value%range;
+  value = value+min;
+	return value;
+}
+
+int buffer_empty(int idx){
+	int out = 0;
+	if (buffer[idx].number == -1 || buffer[idx].number == -1){
+		out = 1;
+	}
+	return out;
+}
+
+void *producer(){
+	unsigned int producer_wait = 0;
+	while(1){
+		if(idx >= 32){
+			pthread_cond_wait(&stopproducer,&lock);
+		}else{
+      producer_wait = 0;
+      pthread_mutex_lock(&lock);
+        if(buffer_empty(idx)){
+          buffer[idx].number = randomval();
+          buffer[idx].wait_time = randomminmax(2,9);
+          printf("Buffer Index: %u \n Value: %u \n Wait Time: %u \n", idx, buffer[idx].number, buffer[idx].wait_time);
+          producer_wait = randomminmax(3,7);
+          printf("Producer waits for: %u \n", producer_wait);
+          pthread_cond_signal(&stopconsumer);
+        pthread_mutex_unlock(&lock);
+        sleep(producer_wait);
+      }
+      idx++;
+    }
+	}
+}
+
+void *consumer(){
+	unsigned int consumer_wait;
+
+	while(1){
+    int grabbed = idx;
+		consumer_wait = 0;
+    if(idx < 1){
+			pthread_cond_wait(&stopconsumer,&lock);
+		}else{
+      pthread_mutex_lock(&lock);
+        if(!(buffer_empty(grabbed))){
+          printf("Consumes value %u at index %d \n Consumer waits for %u at index %d \n",buffer[grabbed].number, grabbed, buffer[grabbed].wait_time, grabbed);
+
+          consumer_wait = buffer[grabbed].wait_time;
+          buffer[grabbed].number = -1;
+          buffer[grabbed].wait_time = -1;
+          idx--;
+          pthread_cond_signal(&stopproducer);
+        }
+        pthread_mutex_unlock(&lock);
+        sleep(consumer_wait);
+    }
+
+    }
 }
 
 int main(int argc, char **argv){
@@ -130,20 +140,23 @@ int main(int argc, char **argv){
 		printf("Incorrect number of arguments");
 		return 1;
 	}
-	int idx;
+	int i,j;
 	int num_threads = atoi(argv[1]);
-	for(int i = 0; i <32; i++){
-		buffer[idx].number = -1;
-		buffer[idx].wait_time = -1;
+	for(i = 0; i <32; i++){
+		buffer[i].number = -1;
+		buffer[i].wait_time = -1;
 	}
 	printf("idx %d \n", idx);
 	pthread_t threads[atoi(argv[1])];
-	for(int j = 0; j < num_threads; j++){
-		if((j%3) == 0){
-			pthread_create(&(threads[i]), NULL, *producer(), (int*)&idx);
+	for(j = 0; j < num_threads; j++){
+		if((j%5) == 0){
+			pthread_create(&(threads[j]), NULL, producer, NULL);
 		}else{
-			pthread_create(&(threads[i]), NULL, *consumer(), (int*)&idx);
+			pthread_create(&(threads[j]), NULL, consumer, NULL);
 		}
 	}
+  while(1){
+
+  }
 	return 0;
 }
