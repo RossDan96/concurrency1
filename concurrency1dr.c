@@ -93,17 +93,19 @@ void *producer(){
 			pthread_cond_wait(&stopproducer,&lock);
 		}else{
       producer_wait = 0;
+	  producer_wait = randomminmax(3,7);
+      printf("Producer waits for: %u \n", producer_wait);
+	  sleep(producer_wait);
       pthread_mutex_lock(&lock);
         if(buffer_empty(idx)){
           buffer[idx].number = randomval();
           buffer[idx].wait_time = randomminmax(2,9);
           printf("Buffer Index: %u \n Value: %u \n Wait Time: %u \n", idx, buffer[idx].number, buffer[idx].wait_time);
-          producer_wait = randomminmax(3,7);
-          printf("Producer waits for: %u \n", producer_wait);
+
           pthread_cond_signal(&stopconsumer);
-        pthread_mutex_unlock(&lock);
-        sleep(producer_wait);
       }
+	  pthread_mutex_unlock(&lock);
+      
       idx++;
     }
 	}
@@ -143,6 +145,8 @@ int main(int argc, char **argv){
 	}
 	int i,j;
 	int num_threads = atoi(argv[1]);
+	pthread_cond_init(&stopconsumer, NULL);
+	pthread_cond_init(&stopproducer, NULL);
 	for(i = 0; i <32; i++){
 		buffer[i].number = -1;
 		buffer[i].wait_time = -1;
